@@ -1,0 +1,94 @@
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+#Import dataset
+read.csv("C:/Users/AbdulMujeeb/Desktop/R projects/libertadores-results-ds.csv")
+copa_lib <- read.csv("C:/Users/AbdulMujeeb/Desktop/R projects/libertadores-results-ds.csv")
+head(copa_lib)
+# the focus will be on main competition matches. So, qualifying matches will be filtered out.
+copa_lib_1 <- filter(copa_lib,Round != "Qualifying Match")
+
+# to have a view of the new table
+head (copa_lib_1)
+
+#Calculating the goals scored at home by each club.
+goals_scored_home <- copa_lib_1 %>% group_by(Home.Club)%>%
+  summarise(goals_at_home = sum(Home.Score))
+goals_scored_home <- goals_scored_home %>% rename(Club = Home.Club)
+
+#Calculating goals scored away by each club
+goals_scored_away <- copa_lib_1 %>% group_by(Away.Club)%>%
+  summarise(goals_away = sum(AwayScore)) %>%
+  rename(Club = Away.Club)
+
+#merging both tables (goals scored at home and goals scored away)
+team_goals <- merge(x= goals_scored_home, y= goals_scored_away, by="Club")
+
+#Calculating total goals scored by each team and arranging from highest to lowest
+team_goals <- team_goals %>% mutate(total_goals = goals_at_home + goals_away) %>%
+  arrange(-total_goals)
+
+#Creating a table of the top ten teams
+top_ten_scoring_clubs <- team_goals %>% slice(1:10)
+
+
+#TEAM WITH MOST GOALS CONCEDED
+
+#Calculating goals conceded at home
+goals_con_home <- copa_lib_1 %>% group_by(Home.Club)%>% summarise(goals_conceded_at_home = sum(AwayScore) )%>%
+  rename(Club = Home.Club)
+
+#calculating goals conceded away
+goals_con_away <- copa_lib_1%>% group_by(Away.Club)%>% summarise(goals_conceded_away = sum(Home.Score))%>%
+  rename(Club = Away.Club)
+#merging both tables
+goals_conceded <- merge(x= goals_con_home, y= goals_con_away, by = "Club")
+
+goals_conceded <- goals_conceded %>% mutate(total_goals_conceded = goals_conceded_at_home + goals_conceded_away)%>%
+  arrange(-total_goals_conceded)
+#Creating a table of top ten conceding teams.
+top_ten_conceding_clubs <- goals_conceded %>% slice(1:10)
+
+#YEAR WITH MOST GOALS
+copa_lib_goals <- copa_lib_1 %>% mutate(total_goals = Home.Score+AwayScore)
+year_goals <- copa_lib_goals %>% group_by(Edition)%>%
+  summarise(goals = sum(total_goals))%>%
+  arrange(-goals)
+
+#MOST FINAL APPEARANCES. Finals after 2019 are separated because they didnt include home and away games. 
+final_appearances <- copa_lib_1 %>% filter(Round== "Final")
+final_bef_2019 <- final_appearances %>%filter(Edition <2019) %>%
+  group_by (Home.Club)%>% summarise(finals= n())%>%
+  rename("Club" = "Home.Club")
+
+final_aft_2019_h <- final_appearances %>%filter(Edition >=2019) %>%
+  group_by (Home.Club)%>% summarise(finals= n())%>%
+  rename ("Club" = "Home.Club")
+finals_aft_2019_a <- final_appearances %>%filter(Edition >=2019) %>%
+  group_by (Away.Club)%>% summarise(finals= n())%>%
+  rename("Club" = "Away.Club" )
+finals_aft_2019 <- rbind(finals_aft_2019_a, final_aft_2019_h) %>% 
+  group_by (Club) %>%
+  summarise(final= sum(finals))%>% rename("finals" = "final")
+final_apps <- rbind(final_bef_2019, finals_aft_2019) %>% group_by(Club)%>%
+  summarise(finals = sum(finals))%>%
+  arrange(-finals)
+ 
+#PLOTS
+
+##Top ten scoring clubs
+ggplot(top_ten_scoring_clubs)+
+  geom_col(aes(Club, total_goals))+
+  labs(title= "Copa Libertadores Top Ten Scoring Clubs", caption = "2011 to 2022")+ xlab("Team")+
+  ylab("Goals Scored") +
+  theme_classic() + theme(axis.text.x= (element_text(size = 7)))  
+
+year_goals$Edition <- as.factor(year_goals$Edition)
+
+ggplot(data = year_goals)+ 
+       geom_point(aes(Edition, goals, size = 3, color = goals))+
+  theme_grey()+
+  labs(title = "Copa Libertadores 2011 to 2022 Goals by Year", xlab= "Edition", ylab="Total Goals")
+  
+  
